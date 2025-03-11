@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  portal-be:
+    build: .
+    container_name: portal-be
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env   # Memuat variabel lingkungan dari file .env
+    volumes:
+      - .:/usr/src/app
+    command: ["npm", "run", "start"]

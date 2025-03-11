@@ -1,0 +1,25 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# TypeScript
+dist/
+*.tsbuildinfo
+
+# Docker
+#docker-compose.override.yml
+.docker/
+#Dockerfile.*
+
+# Environment files
+.env
+
+# Logs
+*.log
+
+# IDE configurations (optional, jika menggunakan IDE seperti VSCode)
+.vscode/
+.idea/
+*.iml
