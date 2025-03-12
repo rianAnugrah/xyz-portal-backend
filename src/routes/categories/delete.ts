@@ -1,8 +1,9 @@
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
+import { authMiddleware } from "../auth-middleware";
 
 export async function deleteCategory(fastify: FastifyInstance) {
-  fastify.delete("/categories/:id", async (request, reply) => {
+  fastify.delete("/categories/:id", { preHandler: authMiddleware },async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const { data, error } = await supabase

@@ -5,6 +5,7 @@ import { updateCategory } from "./update";
 import { deleteCategory } from "./delete";
 
 export default async function categoryRoutes(fastify: FastifyInstance) {
+    
   await Promise.all([
     createCategory(fastify),
     getCategories(fastify),

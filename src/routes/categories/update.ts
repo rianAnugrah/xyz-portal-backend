@@ -1,8 +1,9 @@
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
+import { authMiddleware } from "../auth-middleware";
 
 export async function updateCategory(fastify: FastifyInstance) {
-  fastify.put("/categories/:id", async (request, reply) => {
+  fastify.put("/categories/:id", { preHandler: authMiddleware },async (request, reply) => {
     const { id } = request.params as { id: string };
     const { 
       category_name, 
