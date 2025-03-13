@@ -1,0 +1,22 @@
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MjMsImVtYWlsIjoieHl6Y3JlYXRpdmVtZWRpYUBnbWFpbC5jb20iLCJwbGF0Zm9ybXMiOlt7InBsYXRmb3JtX2lkIjoxLCJwbGF0Zm9ybV9uYW1lIjoieHl6b25lbWVkaWEifSx7InBsYXRmb3JtX2lkIjoyLCJwbGF0Zm9ybV9uYW1lIjoibGJqIn1dLCJpYXQiOjE3NDE4NDg5MzN9.fOrDmvMSN03zQk9_evn9FzZBwqoEBHiYJl8t-JXojxA",
+    "user": {
+        "user_id": 23,
+        "email": "xyzcreativemedia@gmail.com",
+        "username": "logan",
+        "fullname": "logan",
+        "status": "active"
+    },
+    "platforms": [
+        {
+            "platform_id": 1,
+            "platform_name": "xyzonemedia",
+            "platform_desc": "XYZone Media"
+        },
+        {
+            "platform_id": 2,
+            "platform_name": "lbj",
+            "platform_desc": "Lensaberita Jakarta"
+        }
+    ]
+}
