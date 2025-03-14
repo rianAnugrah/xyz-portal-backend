@@ -7,7 +7,7 @@ import authRoutes from "./routes/auth";
 import categoryRoutes from "./routes/categories";
 import articleRoutes from "./routes/articles";
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: false });
 
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
