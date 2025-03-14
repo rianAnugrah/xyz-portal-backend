@@ -28,6 +28,7 @@ export interface Article {
 
 export interface CreateArticleInput {
     platform_id: number;
+    article_id?: number;
     title: string;
     type?: string;
     image?: string;
