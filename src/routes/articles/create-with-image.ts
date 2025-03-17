@@ -2,14 +2,23 @@ import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { authMiddleware } from "../auth-middleware";
 import { CreateArticleInput } from "../../types/article";
+import fastifyMultipart from "@fastify/multipart";
 
-export async function createArticle(fastify: FastifyInstance) {
+export async function createArticleWithImage(fastify: FastifyInstance) {
+  fastify.register(fastifyMultipart);
+
   fastify.post<{
     Body: CreateArticleInput;
-  }>("/articles", async (request, reply) => {
+  }>("/articles-with-image", async (request, reply) => {
+    const data = await request.file();
+    console.log("===REQUESTBODY===", request.body); // Ambil file upload jika ada
+    console.log("==========");
+    console.log(data);
+    console.log("==========");
     try {
       // Check if platform_id exists and is a valid integer, throw error if missing or invalid
       const platformId = Number(request.body.platform_id);
+
       if (
         !request.body.platform_id ||
         isNaN(platformId) ||
@@ -65,9 +74,9 @@ export async function createArticle(fastify: FastifyInstance) {
             .toString()
             .padStart(3, "0")}`
         );
-        if (articleId > 2147483647) {
+        if (articleId > 9223372036854775807) {
           throw new Error(
-            "Generated article_id exceeds integer limit (2,147,483,647)"
+            "Generated article_id exceeds integer limit (9,223,372,036,854,775,807)"
           );
         }
       }
@@ -112,11 +121,12 @@ export async function createArticle(fastify: FastifyInstance) {
 
       reply.code(201).send(data);
     } catch (error: any) {
-      fastify.log.error("Error creating article:", error);
+      fastify.log.error("Error creating article cuy:", error);
       reply.code(500).send({
         error: "Internal Server Error",
         message: "Failed to create article",
         details: error.message || "An unexpected error occurred",
+        body: request.body,
       });
     }
   });

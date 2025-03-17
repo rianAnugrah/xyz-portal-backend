@@ -4,11 +4,11 @@ import { authMiddleware } from "../auth-middleware";
 
 // Konfigurasi MinIO
 const MINIO_CONFIG = {
-  endPoint: "localhost", // Ganti dengan host MinIO Anda
+  endPoint: process.env.MINIO_URL!, // Menambahkan host: 'localhost'
   port: 9001, // Default port MinIO
   useSSL: false, // Ganti ke true jika menggunakan HTTPS
-  accessKey: "G9tWjHvLYwWdaz2vzrww", // Ganti dengan access key Anda
-  secretKey: "K4FW9QiNj20PIVkCPg7e6towS8Ns9iwXu2wFOlEd",
+  accessKey: process.env.MINIO_ACCESS_KEY!, // Ganti dengan access key Anda
+  secretKey: process.env.MINIO_SECRET_KEY!,
 };
 
 const minioClient = new MinioClient(MINIO_CONFIG);

@@ -8,7 +8,7 @@ import categoryRoutes from "./routes/categories";
 import articleRoutes from "./routes/articles";
 import { uploadRoute } from "./routes/upload/upload-route";
 
-const fastify = Fastify({ logger: false });
+const fastify = Fastify({ logger: true });
 
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });

@@ -8,12 +8,11 @@ import { readArticleSingle } from "./read-single";
 import { readArticleBatch } from "./read-batch";
 
 export default async function articleRoutes(fastify: FastifyInstance) {
-    
   await Promise.all([
     createArticle(fastify),
     readArticleSingle(fastify),
     readArticleBatch(fastify),
     updateArticle(fastify),
-    deleteArticle(fastify)
+    deleteArticle(fastify),
   ]);
 }
