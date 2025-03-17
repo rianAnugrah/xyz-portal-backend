@@ -15,11 +15,14 @@
   "dependencies": {
     "@fastify/cors": "^11.0.0",
     "@fastify/jwt": "^9.0.4",
+    "@fastify/multipart": "^9.0.3",
     "@supabase/supabase-js": "^2.49.1",
     "bcryptjs": "^3.0.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "minio": "^8.0.5",
+    "pump": "^3.0.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
