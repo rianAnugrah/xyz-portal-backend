@@ -65,11 +65,11 @@ export async function createArticle(fastify: FastifyInstance) {
             .toString()
             .padStart(3, "0")}`
         );
-        if (articleId > 2147483647) {
-          throw new Error(
-            "Generated article_id exceeds integer limit (2,147,483,647)"
-          );
-        }
+        // if (articleId > 2147483647) {
+        //   throw new Error(
+        //     "Generated article_id exceeds integer limit (2,147,483,647)"
+        //   );
+        // }
       }
 
       // Prepare article data

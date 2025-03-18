@@ -7,11 +7,15 @@ import authRoutes from "./routes/auth";
 import categoryRoutes from "./routes/categories";
 import articleRoutes from "./routes/articles";
 import { uploadRoute } from "./routes/upload/upload-route";
+import fastifyMultipart from "@fastify/multipart";
 
 const fastify = Fastify({ logger: true });
 
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
+
+//fastify.register(fastifyMultipart);
+
 fastify.register(authRoutes, { prefix: "/api" });
 fastify.register(routes, { prefix: "/api" });
 fastify.register(categoryRoutes, { prefix: "/api" });

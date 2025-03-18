@@ -4,13 +4,6 @@ import { authMiddleware } from "../auth-middleware";
 import { CreateArticleInput } from "../../types/article";
 
 export async function createArticle(fastify: FastifyInstance) {
-  fastify.register(import("@fastify/multipart"), {
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit
-      files: 1, // Only one file allowed
-    },
-  });
-
   fastify.post<{
     Body: CreateArticleInput;
   }>("/articles", async (request, reply) => {

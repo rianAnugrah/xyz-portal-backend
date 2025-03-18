@@ -20,13 +20,6 @@ const baseUrl = `${MINIO_CONFIG.useSSL ? "https" : "http"}://${
 }:${MINIO_CONFIG.port}`;
 
 export async function createArticle(fastify: FastifyInstance) {
-  fastify.register(import("@fastify/multipart"), {
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB limit
-      files: 1, // Only one file allowed
-    },
-  });
-
   fastify.post<{
     Body: CreateArticleInput;
   }>("/articles", { preHandler: [authMiddleware] }, async (request, reply) => {

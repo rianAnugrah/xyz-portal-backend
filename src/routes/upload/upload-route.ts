@@ -1,37 +1,38 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, RouteOptions } from "fastify";
 import { Client as MinioClient } from "minio";
 import { authMiddleware } from "../auth-middleware";
+import multipart, { MultipartFile } from "@fastify/multipart";
 
 // Konfigurasi MinIO
 const MINIO_CONFIG = {
-  endPoint: process.env.MINIO_URL!, // Menambahkan host: 'localhost'
-  port: 9001, // Default port MinIO
-  useSSL: false, // Ganti ke true jika menggunakan HTTPS
-  accessKey: process.env.MINIO_ACCESS_KEY!, // Ganti dengan access key Anda
+  endPoint: process.env.MINIO_URL!,
+  port: 9001,
+  useSSL: false,
+  accessKey: process.env.MINIO_ACCESS_KEY!,
   secretKey: process.env.MINIO_SECRET_KEY!,
 };
 
 const minioClient = new MinioClient(MINIO_CONFIG);
 const BUCKET_NAME = "portal-bucket";
 
-// Buat base URL dari konfigurasi
 const baseUrl = `${MINIO_CONFIG.useSSL ? "https" : "http"}://${
   MINIO_CONFIG.endPoint
 }:${MINIO_CONFIG.port}`;
 
 export async function uploadRoute(fastify: FastifyInstance) {
-  await fastify.register(require("@fastify/multipart"), {
+  await fastify.register(multipart, {
     limits: {
       fileSize: 10 * 1024 * 1024,
     },
   });
 
-  fastify.post(
-    "/upload",
-    { preHandler: [authMiddleware] },
-    async (request, reply) => {
+  const routeOptions: RouteOptions = {
+    method: "POST",
+    url: "/upload",
+    preHandler: [authMiddleware],
+    handler: async (request, reply) => {
       try {
-        const data = await request.file();
+        const data = (await request.file()) as MultipartFile;
         if (!data) {
           return reply.code(400).send({ error: "No file uploaded" });
         }
@@ -56,10 +57,9 @@ export async function uploadRoute(fastify: FastifyInstance) {
         const fileBuffer = Buffer.concat(chunks);
 
         const now = new Date();
-        const year = now.getFullYear().toString(); // e.g., "2025"
-        const month = (now.getMonth() + 1).toString().padStart(2, "0"); // e.g., "03"
+        const year = now.getFullYear().toString();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
 
-        // Simpan file dalam folder uploads/{tahun}/{bulan}/
         const filePath = `${year}/${month}/${Date.now()}-${data.filename}`;
 
         const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
@@ -78,7 +78,6 @@ export async function uploadRoute(fastify: FastifyInstance) {
 
         console.log("Upload success:", { bucket: BUCKET_NAME, filePath });
 
-        // Konstruksi URL publik
         const publicUrl = `${baseUrl}/${BUCKET_NAME}/${filePath}`;
 
         console.log("Generated URL:", publicUrl);
@@ -95,6 +94,8 @@ export async function uploadRoute(fastify: FastifyInstance) {
             error instanceof Error ? error.message : "Unknown error occurred",
         });
       }
-    }
-  );
+    },
+  };
+
+  fastify.route(routeOptions);
 }
