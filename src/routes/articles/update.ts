@@ -23,7 +23,7 @@ export async function updateArticle(fastify: FastifyInstance) {
       const { data, error } = await supabase
         .from("articles")
         .update(updateData)
-        .eq("_id", id)
+        .eq("article_id", id)
         .select("*")
         .single();
 
