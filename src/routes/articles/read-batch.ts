@@ -17,12 +17,17 @@ export async function readArticleBatch(fastify: FastifyInstance) {
         tags,
         category,
         status,
+        platform_id,
+        author_id,
       } = request.query;
 
       const pageNum = parseInt(page, 10) || 1;
       const limitNum = parseInt(limit, 10) || 10;
       const start = (pageNum - 1) * limitNum;
       const end = start + limitNum - 1;
+
+      console.log("======= Query Params =========");
+      console.log(request.query);
 
       let query = supabase
         .from("articles")
@@ -32,6 +37,16 @@ export async function readArticleBatch(fastify: FastifyInstance) {
       if (status) {
         fastify.log.info("Filtering by status:", status);
         query = query.eq("status", status);
+      }
+
+      if (author_id) {
+        fastify.log.info("Filtering by author_id:", author_id);
+        query = query.eq("author_id", author_id);
+      }
+
+      if (platform_id) {
+        fastify.log.info("Filtering by platform_id:", platform_id);
+        query = query.eq("platform_id", platform_id);
       }
 
       if (search) {

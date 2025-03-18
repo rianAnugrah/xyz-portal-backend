@@ -1,11 +1,15 @@
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { authMiddleware } from "../auth-middleware";
-import { Article, ArticleQueryParams, CreateArticleInput } from "../../types/article";
+import {
+  Article,
+  ArticleQueryParams,
+  CreateArticleInput,
+} from "../../types/article";
 
 export async function updateArticle(fastify: FastifyInstance) {
-// Update Article
-fastify.put<{
+  // Update Article
+  fastify.put<{
     Params: { id: string };
     Body: Partial<Article>;
   }>("/articles/:id", async (request, reply) => {
@@ -20,7 +24,7 @@ fastify.put<{
         .from("articles")
         .update(updateData)
         .eq("_id", id)
-        .select()
+        .select("*")
         .single();
 
       if (error) throw error;
@@ -34,5 +38,4 @@ fastify.put<{
       reply.code(500).send({ error: "Failed to update article" });
     }
   });
-
 }
