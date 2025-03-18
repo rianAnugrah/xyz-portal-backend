@@ -31,7 +31,22 @@ export async function readArticleBatch(fastify: FastifyInstance) {
 
       let query = supabase
         .from("articles")
-        .select("*", { count: "exact" })
+        .select(
+          `
+        *,
+        author:author_id (
+          user_id,
+          username,
+          email,
+          fullname,
+          first_name,
+          last_name,
+          role,
+          avatar
+        )
+      `,
+          { count: "exact" }
+        )
         .eq("is_deleted", false);
 
       if (status) {
