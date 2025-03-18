@@ -8,6 +8,7 @@ import categoryRoutes from "./routes/categories";
 import articleRoutes from "./routes/articles";
 import { uploadRoute } from "./routes/upload/upload-route";
 import fastifyMultipart from "@fastify/multipart";
+import { userRoutes } from "./routes/users";
 
 const fastify = Fastify({ logger: true });
 
@@ -21,6 +22,7 @@ fastify.register(routes, { prefix: "/api" });
 fastify.register(categoryRoutes, { prefix: "/api" });
 fastify.register(articleRoutes, { prefix: "/api" });
 fastify.register(uploadRoute, { prefix: "/api" });
+fastify.register(userRoutes, { prefix: "/api" });
 // Health check route
 fastify.get("/", async (request, reply) => {
   reply.send({ status: "ok" });
