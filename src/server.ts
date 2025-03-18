@@ -14,7 +14,7 @@ const fastify = Fastify({ logger: true });
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
 
-//fastify.register(fastifyMultipart);
+fastify.register(fastifyMultipart);
 
 fastify.register(authRoutes, { prefix: "/api" });
 fastify.register(routes, { prefix: "/api" });

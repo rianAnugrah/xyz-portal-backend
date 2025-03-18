@@ -85,7 +85,7 @@ export async function createArticle(fastify: FastifyInstance) {
       const { data, error } = await supabase
         .from("articles")
         .insert(articleData)
-        .select()
+        .select("*")
         .single();
 
       if (error) {

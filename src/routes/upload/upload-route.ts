@@ -20,11 +20,11 @@ const baseUrl = `${MINIO_CONFIG.useSSL ? "https" : "http"}://${
 }:${MINIO_CONFIG.port}`;
 
 export async function uploadRoute(fastify: FastifyInstance) {
-  await fastify.register(multipart, {
-    limits: {
-      fileSize: 10 * 1024 * 1024,
-    },
-  });
+  // await fastify.register(multipart, {
+  //   limits: {
+  //     fileSize: 10 * 1024 * 1024,
+  //   },
+  // });
 
   const routeOptions: RouteOptions = {
     method: "POST",
