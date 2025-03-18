@@ -4,8 +4,6 @@ import { authMiddleware } from "../auth-middleware";
 import { ArticleQueryParams, CreateArticleInput } from "../../types/article";
 
 export async function readArticleSingle(fastify: FastifyInstance) {
-
-
   // Read Single Article
   fastify.get<{
     Params: { id: string };
@@ -15,7 +13,21 @@ export async function readArticleSingle(fastify: FastifyInstance) {
 
       const { data, error } = await supabase
         .from("articles")
-        .select("*")
+        .select(
+          `
+        *,
+        author:author_id (
+          user_id,
+          username,
+          email,
+          fullname,
+          first_name,
+          last_name,
+          role,
+          avatar
+        )
+      `
+        )
         .eq("_id", id)
         .eq("is_deleted", false)
         .single();
@@ -31,6 +43,4 @@ export async function readArticleSingle(fastify: FastifyInstance) {
       reply.code(500).send({ error: "Failed to fetch article" });
     }
   });
-
-
 }
