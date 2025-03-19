@@ -12,7 +12,15 @@ import { userRoutes } from "./routes/users";
 
 const fastify = Fastify({ logger: true });
 
-fastify.register(cors);
+//Configure CORS explicitly
+fastify.register(cors, {
+  origin: "*", // Allow all origins
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  preflightContinue: false, // Ensure Fastify responds to OPTIONS itself
+  optionsSuccessStatus: 204, // Return 204 for OPTIONS
+});
+// fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
 
 fastify.register(fastifyMultipart);
@@ -30,7 +38,7 @@ fastify.get("/", async (request, reply) => {
 
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000, host: "0.0.0.0" }); // Menambahkan host: '0.0.0.0'
+    await fastify.listen({ port: 3001, host: "0.0.0.0" }); // Menambahkan host: '0.0.0.0'
     console.log("Server running on http://0.0.0.0:3000");
     console.log(`Server running on ${process.env.ENV} environment`);
     console.log(`Server running on ${process.env.SUPABASE_URL} supabase`);

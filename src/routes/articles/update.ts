@@ -13,6 +13,13 @@ export async function updateArticle(fastify: FastifyInstance) {
     Params: { id: string };
     Body: Partial<Article>;
   }>("/articles/:id", async (request, reply) => {
+    console.log(
+      "PUT Request:",
+      request.method,
+      request.url,
+      request.headers,
+      request.body
+    );
     try {
       const { id } = request.params;
       const updateData = {
