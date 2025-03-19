@@ -94,6 +94,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       const {
         username,
         password,
+        old_password, // Added old_password parameter
         email,
         status,
         fullname,
@@ -104,6 +105,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       } = request.body as {
         username?: string;
         password?: string;
+        old_password?: string; // Added to type definition
         email?: string;
         status?: string;
         fullname?: string;
@@ -112,6 +114,38 @@ export async function userRoutes(fastify: FastifyInstance) {
         role?: string;
         avatar?: string;
       };
+
+      // If password is being updated, verify old password first
+      if (password) {
+        // Fetch the current user's data to get the existing password hash
+        const { data: currentUser, error: fetchError } = await supabase
+          .from("users")
+          .select("password_hash")
+          .eq("user_id", user_id)
+          .single();
+
+        if (fetchError || !currentUser) {
+          return reply.status(404).send({
+            message: "User not found or error fetching user data",
+            error: fetchError,
+          });
+        }
+
+        // Check if old_password is provided when updating password
+        if (!old_password) {
+          return reply.status(400).send({
+            message: "Old password is required when updating password",
+          });
+        }
+
+        // Verify old password matches
+        const oldPasswordHash = hashSHA256(old_password);
+        if (oldPasswordHash !== currentUser.password_hash) {
+          return reply.status(401).send({
+            message: "Old password is incorrect",
+          });
+        }
+      }
 
       const updateData: any = {};
       if (username) updateData.username = username;
