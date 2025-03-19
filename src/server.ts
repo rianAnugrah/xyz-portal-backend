@@ -11,7 +11,7 @@ import fastifyMultipart from "@fastify/multipart";
 import { userRoutes } from "./routes/users";
 import { migrateArticle } from "./routes/migrate";
 
-const fastify = Fastify({ logger: false });
+const fastify = Fastify({ logger: true });
 
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });

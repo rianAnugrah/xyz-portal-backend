@@ -17,7 +17,6 @@ SELECT p.ID, p.post_status, p.post_title
 FROM wpi6_posts p
 WHERE p.post_status = 'publish' AND p.post_type = 'post'
 ORDER BY p.ID DESC
-LIMIT 10000 OFFSET 1188;
 `;
 
 // Fungsi untuk memeriksa apakah string valid JSON
@@ -35,7 +34,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Fungsi untuk migrasi artikel dari MySQL ke Supabase
 async function migrateArticles() {
-  let migratedCount = 1188; // Counter untuk jumlah artikel yang berhasil dimigrasi
+  let migratedCount = 0; // Counter untuk jumlah artikel yang berhasil dimigrasi
 
   return new Promise<void>((resolve, reject) => {
     mysqlConnection.query(query_get_all_articles, async (err, results) => {
