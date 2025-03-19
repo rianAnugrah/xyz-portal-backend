@@ -9,9 +9,8 @@ import articleRoutes from "./routes/articles";
 import { uploadRoute } from "./routes/upload/upload-route";
 import fastifyMultipart from "@fastify/multipart";
 import { userRoutes } from "./routes/users";
-import { migrateArticle } from "./routes/migrate";
 
-const fastify = Fastify({ logger: false });
+const fastify = Fastify({ logger: true });
 
 fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
@@ -24,7 +23,6 @@ fastify.register(categoryRoutes, { prefix: "/api" });
 fastify.register(articleRoutes, { prefix: "/api" });
 fastify.register(uploadRoute, { prefix: "/api" });
 fastify.register(userRoutes, { prefix: "/api" });
-fastify.register(migrateArticle, { prefix: "/api" });
 // Health check route
 fastify.get("/", async (request, reply) => {
   reply.send({ status: "ok" });

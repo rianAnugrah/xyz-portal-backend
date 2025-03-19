@@ -23,7 +23,6 @@
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "minio": "^8.0.5",
-    "mysql2": "^3.13.0",
     "pump": "^3.0.2"
   },
   "devDependencies": {
