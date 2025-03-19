@@ -38,7 +38,7 @@ fastify.get("/", async (request, reply) => {
 
 const start = async () => {
   try {
-    await fastify.listen({ port: 3001, host: "0.0.0.0" }); // Menambahkan host: '0.0.0.0'
+    await fastify.listen({ port: 3000, host: "0.0.0.0" }); // Menambahkan host: '0.0.0.0'
     console.log("Server running on http://0.0.0.0:3000");
     console.log(`Server running on ${process.env.ENV} environment`);
     console.log(`Server running on ${process.env.SUPABASE_URL} supabase`);
