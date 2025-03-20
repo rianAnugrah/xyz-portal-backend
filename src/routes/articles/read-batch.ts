@@ -11,7 +11,7 @@ export async function readArticleBatch(fastify: FastifyInstance) {
       const {
         page = "1",
         limit = "10",
-        sortBy = "created_at",
+        sortBy = "date", //creted_at
         sortOrder = "desc",
         search,
         tags,
@@ -64,10 +64,14 @@ export async function readArticleBatch(fastify: FastifyInstance) {
         query = query.eq("platform_id", platform_id);
       }
 
+      // if (search) {
+      //   query = query.or(
+      //     `title.ilike.%${search}%,description.ilike.%${search}%`
+      //   );
+      // }
+
       if (search) {
-        query = query.or(
-          `title.ilike.%${search}%,description.ilike.%${search}%`
-        );
+        query = query.or(`title.ilike.%${search}%`);
       }
 
       if (tags) {
