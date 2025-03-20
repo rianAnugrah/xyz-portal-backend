@@ -1,0 +1,51 @@
+import { FastifyInstance } from "fastify";
+import supabase from "../../supabase";
+import { formatDate } from "../../helpers/date-format";
+
+export async function getEditorChoices(fastify: FastifyInstance) {
+  fastify.get("/editor-choices", async (request, reply) => {
+    fastify.log.info("Starting query for editor choice...");
+    let query = supabase.from("editor_choices").select(
+      `position,
+        article_id,
+      article:article_id (
+        _id,
+        article_id,
+        title,
+        slug,
+        date,
+        description,
+        author:author_id (
+          user_id,
+          username,
+          fullname,
+          avatar
+        )
+      )
+    `
+    );
+    const { data, error } = await query;
+
+    fastify.log.info("Query executed:", { data, error });
+
+    if (error) {
+      return reply.status(500).send({
+        message: "Failed to fetch editor_choices",
+        error: error.message,
+      });
+    }
+
+    const formattedData = data?.map((headline: any) => ({
+      ...headline,
+      article: {
+        ...headline.article,
+        date: formatDate(headline.article.date),
+      },
+    }));
+
+    return reply.send({
+      message: "success",
+      data: formattedData || [],
+    });
+  });
+}

@@ -10,6 +10,8 @@ import { uploadRoute } from "./routes/upload/upload-route";
 import fastifyMultipart from "@fastify/multipart";
 import { userRoutes } from "./routes/users";
 import headlineRoutes from "./routes/headlines";
+import mostViewsRoutes from "./routes/most-views";
+import editorChoicesRoutes from "./routes/editor-choices";
 
 const fastify = Fastify({ logger: true });
 
@@ -33,6 +35,8 @@ fastify.register(articleRoutes, { prefix: "/api" });
 fastify.register(uploadRoute, { prefix: "/api" });
 fastify.register(userRoutes, { prefix: "/api" });
 fastify.register(headlineRoutes, { prefix: "/api" });
+fastify.register(editorChoicesRoutes, { prefix: "/api" });
+fastify.register(mostViewsRoutes, { prefix: "/api" });
 // Health check route
 fastify.get("/", async (request, reply) => {
   reply.send({ status: "ok" });
