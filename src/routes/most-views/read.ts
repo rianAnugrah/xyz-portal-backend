@@ -17,6 +17,7 @@ export async function getMostViews(fastify: FastifyInstance) {
         title,
         slug,
         date,
+        image,
         views,
         description,
         author:author_id (

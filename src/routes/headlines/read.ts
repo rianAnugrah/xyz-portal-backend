@@ -15,6 +15,7 @@ export async function getHeadlines(fastify: FastifyInstance) {
         slug,
         date,
         description,
+        image,
         author:author_id (
           user_id,
           username,

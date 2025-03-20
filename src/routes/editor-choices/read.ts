@@ -14,6 +14,7 @@ export async function getEditorChoices(fastify: FastifyInstance) {
         title,
         slug,
         date,
+        image,
         description,
         author:author_id (
           user_id,
