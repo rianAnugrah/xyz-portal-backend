@@ -49,7 +49,7 @@ export async function readArticleBatch(fastify: FastifyInstance) {
         )
         .eq("is_deleted", false);
 
-      if (status) {
+      if (status && status !== "all") {
         fastify.log.info("Filtering by status:", status);
         query = query.eq("status", status);
       }

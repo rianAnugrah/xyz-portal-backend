@@ -6,7 +6,7 @@ import Fastify, {
 import { Client as MinioClient } from "minio";
 import { randomUUID } from "crypto";
 import path from "path";
-import supabase from "../../supabase";
+import supabase from "../../../supabase";
 
 type ArticleFields = {
   [key: string]: { value: string };

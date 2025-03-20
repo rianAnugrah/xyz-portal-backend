@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
-import supabase from "../../supabase";
-import { authMiddleware } from "../auth-middleware";
-import { CreateArticleInput } from "../../types/article";
+import supabase from "../../../supabase";
+import { authMiddleware } from "../../auth-middleware";
+import { CreateArticleInput } from "../../../types/article";
 import { Client as MinioClient } from "minio";
 
 // Konfigurasi MinIO
