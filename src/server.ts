@@ -26,7 +26,12 @@ fastify.register(cors, {
 // fastify.register(cors);
 fastify.register(jwt, { secret: process.env.JWT_SECRET! });
 
-fastify.register(fastifyMultipart);
+fastify.register(fastifyMultipart, {
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB, sesuaikan sesuai kebutuhan
+    files: 1, // Batasi 1 file per request
+  },
+});
 
 fastify.register(authRoutes, { prefix: "/api" });
 fastify.register(routes, { prefix: "/api" });
