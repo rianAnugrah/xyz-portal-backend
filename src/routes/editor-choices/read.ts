@@ -40,6 +40,9 @@ export async function getEditorChoices(fastify: FastifyInstance) {
       ...headline,
       article: {
         ...headline.article,
+        image: headline.article.image.includes("http")
+          ? headline.article.image
+          : `${process.env.IMAGE_URL}${headline.article.image}`,
         date: formatDate(headline.article.date),
       },
     }));

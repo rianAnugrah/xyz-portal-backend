@@ -43,9 +43,19 @@ export async function getMostViews(fastify: FastifyInstance) {
       });
     }
 
+    const formattedData = data?.map((article) => ({
+      ...article,
+      date: formatDate(article.date),
+      image: article.image.includes("http")
+        ? article.image
+        : `${process.env.IMAGE_URL}${article.image}`,
+      // Add other date fields if needed, e.g., updated_at
+      // updated_at: formatDate(article.updated_at),
+    }));
+
     return reply.send({
       message: "success",
-      data: data || [],
+      data: formattedData || [],
     });
   });
 }

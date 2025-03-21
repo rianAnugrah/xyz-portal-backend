@@ -101,6 +101,9 @@ export async function readArticleBatch(fastify: FastifyInstance) {
         date: formatDate(article.date),
         updated_at: formatDate(article.updated_at),
         approved_at: formatDate(article.approved_at),
+        image: article.image.includes("http")
+          ? article.image
+          : `${process.env.IMAGE_URL}${article.image}`,
         // Add other date fields if needed, e.g., updated_at
         // updated_at: formatDate(article.updated_at),
       }));

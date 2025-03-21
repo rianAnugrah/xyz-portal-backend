@@ -7,8 +7,8 @@ export async function createEditorChoices(fastify: FastifyInstance) {
     "/editor-choices",
     //{ preHandler: authMiddleware },
     async (request, reply) => {
-      const { headlines } = request.body as {
-        headlines: Array<{
+      const { editor_choices } = request.body as {
+        editor_choices: Array<{
           article_id: string;
           position: number;
         }>;
@@ -19,7 +19,7 @@ export async function createEditorChoices(fastify: FastifyInstance) {
       };
 
       // Input validation
-      if (!headlines || !Array.isArray(headlines)) {
+      if (!editor_choices || !Array.isArray(editor_choices)) {
         return reply.status(400).send({
           message: "Editor choices must be provided as an array",
         });
@@ -33,7 +33,7 @@ export async function createEditorChoices(fastify: FastifyInstance) {
 
       try {
         const results = await Promise.all(
-          headlines.map(async (headline) => {
+          editor_choices.map(async (headline) => {
             const { data, error } = await supabase
               .from("editor_choices")
               .upsert(
