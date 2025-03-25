@@ -1,10 +1,14 @@
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { formatDate } from "../../helpers/date-format";
+import { ArticleQueryParams } from "../../types/article";
 
 export async function getMostViews(fastify: FastifyInstance) {
-  fastify.get("/most-views", async (request, reply) => {
+  fastify.get<{
+    Querystring: ArticleQueryParams;
+  }>("/most-views", async (request, reply) => {
     fastify.log.info("Starting query for headlines...");
+    const { platform_id } = request.query;
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); // Mengurangi 3 hari dari tanggal saat ini
 
@@ -14,11 +18,14 @@ export async function getMostViews(fastify: FastifyInstance) {
         `
         _id,
         article_id,
+        platform_id,
         title,
         slug,
         date,
         image,
         views,
+        category,
+        tags,
         description,
         author:author_id (
           user_id,
@@ -32,6 +39,10 @@ export async function getMostViews(fastify: FastifyInstance) {
       .order("views", { ascending: false }) // Urutkan berdasarkan views terbanyak
       .limit(5); // Ambil 5 artikel
 
+    if (platform_id) {
+      fastify.log.info("Filtering by platform_id:", platform_id);
+      query = query.eq("platform_id", platform_id);
+    }
     const { data, error } = await query;
 
     fastify.log.info("Query executed:", { data, error });

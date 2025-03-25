@@ -1,19 +1,28 @@
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { formatDate } from "../../helpers/date-format";
+import { ArticleQueryParams } from "../../types/article";
 
 export async function getEditorChoices(fastify: FastifyInstance) {
-  fastify.get("/editor-choices", async (request, reply) => {
+  fastify.get<{
+    Querystring: ArticleQueryParams;
+  }>("/editor-choices", async (request, reply) => {
     fastify.log.info("Starting query for editor choice...");
+
+    const { platform_id } = request.query;
+
     let query = supabase.from("editor_choices").select(
       `position,
         article_id,
       article:article_id (
         _id,
         article_id,
+        platform_id,
         title,
         slug,
         date,
+        category,
+        tags,
         image,
         description,
         author:author_id (
@@ -25,6 +34,12 @@ export async function getEditorChoices(fastify: FastifyInstance) {
       )
     `
     );
+
+    if (platform_id) {
+      fastify.log.info("Filtering by platform_id:", platform_id);
+      query = query.eq("platform_id", platform_id);
+    }
+
     const { data, error } = await query;
 
     fastify.log.info("Query executed:", { data, error });
