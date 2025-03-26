@@ -28,7 +28,7 @@ export async function readArticleSingle(fastify: FastifyInstance) {
         )
       `
         )
-        .eq("_id", id)
+        .eq("article_id", id)
         .eq("is_deleted", false)
         .single();
 
