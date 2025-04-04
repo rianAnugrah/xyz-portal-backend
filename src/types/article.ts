@@ -57,5 +57,6 @@ export interface ArticleQueryParams {
   category?: string; // Filter berdasarkan category (JSON string atau comma-separated)
   status?: string; // Filter berdasarkan status
   platform_id?: string; // Filter berdasarkan status
-  author_id?: string; // Filter berdasarkan status
+  author_id?: string; 
+  headline_category?:string;// Filter berdasarkan status
 }

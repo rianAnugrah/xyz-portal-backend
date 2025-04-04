@@ -11,6 +11,7 @@ export async function createHeadlines(fastify: FastifyInstance) {
         headlines: Array<{
           article_id: string;
           position: number;
+          headline_category?: string;
         }>;
       };
 
@@ -41,13 +42,15 @@ export async function createHeadlines(fastify: FastifyInstance) {
                   article_id: headline.article_id,
                   position: headline.position,
                   platform_id: platform_id,
+                  headline_category: headline.headline_category
                 },
                 {
-                  onConflict: "position,platform_id", // Changed to a single string with comma-separated columns
+                  onConflict: "position,platform_id,headline_category"
                 }
               )
               .eq("position", headline.position)
               .eq("platform_id", platform_id)
+              .eq("headline_category", headline.headline_category)
               .select();
 
             if (error) {

@@ -9,11 +9,12 @@ export async function getHeadlines(fastify: FastifyInstance) {
   }>("/headlines", async (request, reply) => {
     fastify.log.info("Starting query for headlines...");
 
-    const { platform_id } = request.query;
+    const { platform_id , headline_category } = request.query;
 
     let query = supabase.from("headlines").select(
       `position,
         article_id,
+        headline_category,
       article:article_id (
         _id,
         article_id,
@@ -38,6 +39,11 @@ export async function getHeadlines(fastify: FastifyInstance) {
     if (platform_id) {
       fastify.log.info("Filtering by platform_id:", platform_id);
       query = query.eq("platform_id", platform_id);
+    }
+
+    if (headline_category) {
+      fastify.log.info("Filtering by headline_category:", headline_category);
+      query = query.eq("headline_category", headline_category);
     }
 
     const { data, error } = await query;
