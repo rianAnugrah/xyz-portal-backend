@@ -13,6 +13,7 @@ import headlineRoutes from "./routes/headlines";
 import mostViewsRoutes from "./routes/most-views";
 import editorChoicesRoutes from "./routes/editor-choices";
 import { galleryRoutes } from "./routes/gallery/gallery-route";
+import platformAccessRoutes from "./routes/platform-access";
 
 const fastify = Fastify({ logger: true });
 
@@ -44,6 +45,7 @@ fastify.register(headlineRoutes, { prefix: "/api" });
 fastify.register(editorChoicesRoutes, { prefix: "/api" });
 fastify.register(mostViewsRoutes, { prefix: "/api" });
 fastify.register(galleryRoutes, { prefix: "/api" });
+fastify.register(platformAccessRoutes, { prefix: "/api" });
 // Health check route
 fastify.get("/", async (request, reply) => {
   reply.send({ status: "ok" });
