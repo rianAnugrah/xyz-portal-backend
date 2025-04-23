@@ -1,11 +1,10 @@
-// routes/users.ts
 import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { hashSHA256 } from "../../helpers/hash";
 import { authMiddleware } from "../auth-middleware";
 
 export async function userRoutes(fastify: FastifyInstance) {
-  // CREATE - Register new user
+  // CREATE - Register new user with platform access
   fastify.post(
     "/users",
     { preHandler: authMiddleware },
@@ -20,6 +19,7 @@ export async function userRoutes(fastify: FastifyInstance) {
         last_name,
         role,
         avatar,
+        platform_ids = [],
       } = request.body as {
         username: string;
         password: string;
@@ -30,11 +30,12 @@ export async function userRoutes(fastify: FastifyInstance) {
         last_name?: string;
         role?: string;
         avatar?: string;
+        platform_ids?: number[];
       };
 
       const hashedPassword = hashSHA256(password);
 
-      const { data, error } = await supabase
+      const { data: user, error: userError } = await supabase
         .from("users")
         .insert([
           {
@@ -53,31 +54,44 @@ export async function userRoutes(fastify: FastifyInstance) {
         .select()
         .single();
 
-      if (error) return reply.status(500).send(error);
-      return reply
-        .status(201)
-        .send({ message: "User created successfully", data });
+      if (userError) return reply.status(500).send(userError);
+
+      if (platform_ids.length > 0) {
+        const platformAccessInserts = platform_ids.map((platform_id) => ({
+          user_id: user.user_id,
+          platform_id,
+        }));
+
+        const { error: accessError } = await supabase
+          .from("platform_access")
+          .insert(platformAccessInserts);
+
+        if (accessError)
+          return reply.status(500).send({ message: "User created but failed to assign platforms", error: accessError });
+      }
+
+      return reply.status(201).send({ message: "User created successfully", data: user });
     }
   );
 
-  // READ - Get all users
+  // READ - Get all users with platform access
   fastify.get("/users", async (request, reply) => {
     const { data, error } = await supabase
       .from("users")
-      .select("*")
+      .select("*, platform_access(*, platforms(*))")
       .order("created_at", { ascending: false });
 
     if (error) return reply.status(500).send(error);
     return reply.send(data);
   });
 
-  // READ - Get user by ID
+  // READ - Get user by ID with platform access
   fastify.get("/users/:user_id", async (request, reply) => {
     const { user_id } = request.params as { user_id: string };
 
     const { data, error } = await supabase
       .from("users")
-      .select("*")
+      .select("*, platform_access(*, platforms(*))")
       .eq("user_id", user_id)
       .single();
 
@@ -85,7 +99,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     return reply.send(data);
   });
 
-  // UPDATE - Update user
+  // UPDATE - Update user and platform access
   fastify.put(
     "/users/:user_id",
     { preHandler: authMiddleware },
@@ -94,7 +108,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       const {
         username,
         password,
-        old_password, // Added old_password parameter
+        old_password,
         email,
         status,
         fullname,
@@ -102,10 +116,11 @@ export async function userRoutes(fastify: FastifyInstance) {
         last_name,
         role,
         avatar,
+        platform_ids,
       } = request.body as {
         username?: string;
         password?: string;
-        old_password?: string; // Added to type definition
+        old_password?: string;
         email?: string;
         status?: string;
         fullname?: string;
@@ -113,32 +128,29 @@ export async function userRoutes(fastify: FastifyInstance) {
         last_name?: string;
         role?: string;
         avatar?: string;
+        platform_ids?: number[];
       };
-
-      // If password is being updated, verify old password first
+  
       if (password) {
-        // Fetch the current user's data to get the existing password hash
         const { data: currentUser, error: fetchError } = await supabase
           .from("users")
           .select("password_hash")
           .eq("user_id", user_id)
           .single();
-
+  
         if (fetchError || !currentUser) {
           return reply.status(404).send({
             message: "User not found or error fetching user data",
             error: fetchError,
           });
         }
-
-        // Check if old_password is provided when updating password
+  
         if (!old_password) {
           return reply.status(400).send({
             message: "Old password is required when updating password",
           });
         }
-
-        // Verify old password matches
+  
         const oldPasswordHash = hashSHA256(old_password);
         if (oldPasswordHash !== currentUser.password_hash) {
           return reply.status(401).send({
@@ -146,7 +158,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           });
         }
       }
-
+  
       const updateData: any = {};
       if (username) updateData.username = username;
       if (password) updateData.password_hash = hashSHA256(password);
@@ -157,19 +169,49 @@ export async function userRoutes(fastify: FastifyInstance) {
       if (last_name) updateData.last_name = last_name;
       if (role) updateData.role = role;
       if (avatar) updateData.avatar = avatar;
-
-      const { data, error } = await supabase
+  
+      const { data: updatedUser, error: updateError } = await supabase
         .from("users")
         .update(updateData)
         .eq("user_id", user_id)
         .select()
         .single();
-
-      if (error) return reply.status(500).send(error);
-      return reply.send({ message: "User updated successfully", data });
+  
+      if (updateError) return reply.status(500).send(updateError);
+  
+      // Handle platform access update
+      if (platform_ids) {
+        // Delete old platform access
+        await supabase.from("platform_access").delete().eq("user_id", user_id);
+  
+        // Insert new platform access
+        if (platform_ids.length > 0) {
+          const platformAccessInserts = platform_ids.map((platform_id) => ({
+            user_id: updatedUser.user_id,
+            platform_id,
+          }));
+  
+          const { error: insertError } = await supabase
+            .from("platform_access")
+            .insert(platformAccessInserts);
+  
+          if (insertError) return reply.status(500).send(insertError);
+        }
+      }
+  
+      // Fetch the updated user data with platform access
+      const { data: finalUser, error: fetchError } = await supabase
+        .from("users")
+        .select("*, platform_access(*, platforms(*))")
+        .eq("user_id", updatedUser.user_id)
+        .single();
+  
+      if (fetchError) return reply.status(500).send(fetchError);
+  
+      return reply.send({ message: "User updated successfully", data: finalUser });
     }
   );
-
+  
   // DELETE - Delete user
   fastify.delete(
     "/users/:user_id",
