@@ -14,11 +14,11 @@ export async function createArticle(fastify: FastifyInstance) {
         !request.body.platform_id ||
         isNaN(platformId) ||
         platformId < 0 ||
-        platformId > 9
+        platformId > 40
       ) {
         return reply.code(400).send({
           error: "Bad Request",
-          message: "platform_id must be a valid integer between 0 and 9",
+          message: "platform_id must be a valid integer between 0 and 40",
         });
       }
 
