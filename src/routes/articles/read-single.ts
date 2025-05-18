@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import supabase from "../../supabase";
 import { authMiddleware } from "../auth-middleware";
 import { ArticleQueryParams, CreateArticleInput } from "../../types/article";
+import { formatDate } from "../../helpers/date-format";
 
 export async function readArticleSingle(fastify: FastifyInstance) {
   // Read Single Article
@@ -37,7 +38,19 @@ export async function readArticleSingle(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "Article not found" });
       }
 
-      reply.send(data);
+      // Format the response data
+      const formattedData = {
+        ...data,
+        created_at: formatDate(data.created_at),
+        date: formatDate(data.date),
+        updated_at: formatDate(data.updated_at),
+        approved_at: formatDate(data.approved_at),
+        image: data.image.includes("http")
+          ? data.image
+          : `${process.env.IMAGE_URL}${data.image}`,
+      };
+
+      reply.send(formattedData);
     } catch (error) {
       fastify.log.error(error);
       reply.code(500).send({ error: "Failed to fetch article" });
@@ -79,7 +92,19 @@ export async function readArticleBySlug(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "Article not found" });
       }
 
-      reply.send(data);
+      // Format the response data
+      const formattedData = {
+        ...data,
+        created_at: formatDate(data.created_at),
+        date: formatDate(data.date),
+        updated_at: formatDate(data.updated_at),
+        approved_at: formatDate(data.approved_at),
+        image: data.image.includes("http")
+          ? data.image
+          : `${process.env.IMAGE_URL}${data.image}`,
+      };
+
+      reply.send(formattedData);
     } catch (error) {
       fastify.log.error(error);
       reply.code(500).send({ error: "Failed to fetch article by slug" });
