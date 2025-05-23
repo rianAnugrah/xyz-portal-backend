@@ -49,12 +49,12 @@ export async function createArticle(fastify: FastifyInstance) {
           lastArticle.article_id !== null &&
           lastArticle.article_id !== undefined
         ) {
-          const lastArticleId = Number(lastArticle.article_id); // Ensure it’s a number
-          const lastSeq = Math.floor(lastArticleId % 1000); // Last 3 digits
+          const lastArticleId = Number(lastArticle.article_id); // Ensure it's a number
+          const lastSeq = Math.floor(lastArticleId % 10000); // Last 4 digits instead of 3
           sequence = lastSeq + 1; // Increment
-          if (sequence > 999) {
+          if (sequence > 9999) {
             throw new Error(
-              "Sequence exceeded maximum value (999) for this day"
+              "Sequence exceeded maximum value (9999) for this day"
             );
           }
         }
