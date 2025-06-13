@@ -24,46 +24,71 @@ export default async function analyticsRoutes(server: FastifyInstance) {
   server.post('/analytics', async (req, reply) => {
     const body = req.body as {
       visitorId: string
+      sessionId?: string
       ip: string
-      referrer?: string
-      timestamp?: string
-      type: string
-      url: string
       userAgent: string
-      browser?: string
-      os?: string
-      device?: string
-      country?: string
-      city?: string
-      platform?: string
+      platform: string
+      browser: string
+      device: string
+      os: string
       screenWidth?: number
       screenHeight?: number
-      sessionId?: string
+      referrer?: string
+      referrerUrl?: string
+      pathname?: string
+      url: string
+      type: string
+      is_article_page?: boolean
+      category_slug?: string
+      article_id?: string
+      article_slug?: string
+      tag_list?: string[]
+      timestamp?: string
+      exitedAt?: string
+      duration?: number
+      platform_id?: number
     }
-
+  
     const { error } = await supabase.from('analytics_logs').insert({
       visitor_id: body.visitorId,
+      session_id: body.sessionId || null,
       ip: body.ip,
-      referrer: body.referrer || null,
-      timestamp: body.timestamp || new Date().toISOString(),
-      type: body.type,
-      url: body.url,
       user_agent: body.userAgent,
-      browser: body.browser || null,
-      os: body.os || null,
-      device: body.device || null,
-      country: body.country || null,
-      city: body.city || null,
-      platform: body.platform || null,
+      platform: body.platform,
+      browser: body.browser,
+      device: body.device,
+      os: body.os,
       screen_width: body.screenWidth || null,
       screen_height: body.screenHeight || null,
-      session_id: body.sessionId || null
+      referrer: body.referrer || null,
+      referrer_url: body.referrerUrl || null,
+      pathname: body.pathname || null,
+      url: body.url,
+      type: body.type,
+      is_article_page: body.is_article_page ?? null,
+      category_slug: body.category_slug || null,
+      article_id: body.article_id || null,
+      article_slug: body.article_slug || null,
+      tag_list: body.tag_list || null,
+      timestamp: body.timestamp || new Date().toISOString(),
+      exited_at: body.exitedAt || null,
+      duration: body.duration || null,
+      platform_id: body.platform_id || null
     })
-
-    if (error) return reply.status(500).send({ message: 'Gagal simpan data.', error })
-
-    return reply.send({ message: 'Berhasil simpan data.' })
+  
+    if (error) {
+      return reply.status(500).send({ message: 'Gagal menyimpan data analytics.', error })
+    }
+    
+    if (body.article_id) {
+      await supabase.rpc('increment_article_view', { aid: body.article_id })
+    }
+    
+    
+  
+    return reply.send({ message: 'Data analytics berhasil disimpan.' })
   })
+  
 
   // GET: Data analytics
   server.get('/analytics', async (req, reply) => {
@@ -172,4 +197,30 @@ export default async function analyticsRoutes(server: FastifyInstance) {
 
     return reply.send({ message: 'Weekly progress generated.', data: progress })
   })
+
+  server.get('/analytics/duration-summary', async (req, reply) => {
+    const { data, error } = await supabase
+      .from('analytics_logs')
+      .select('duration')
+      .not('duration', 'is', null)
+
+    if (error) {
+      return reply.status(500).send({ message: 'Gagal mengambil data durasi.', error })
+    }
+
+    const durations = data.map((d: any) => d.duration ?? 0)
+    const totalVisit = durations.length
+    const totalDuration = durations.reduce((sum, d) => sum + d, 0)
+    const avgDuration = totalVisit === 0 ? 0 : totalDuration / totalVisit
+
+    return reply.send({
+      message: 'Durasi summary berhasil diambil.',
+      data: {
+        totalVisit,
+        totalDuration,
+        avgDuration: Number(avgDuration.toFixed(2))
+      }
+    })
+  })
+
 }
