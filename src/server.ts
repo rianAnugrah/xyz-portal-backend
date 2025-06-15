@@ -28,6 +28,7 @@ fastify.register(cors, {
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials:true,
   preflightContinue: false, // Ensure Fastify responds to OPTIONS itself
   optionsSuccessStatus: 204, // Return 204 for OPTIONS
 });
