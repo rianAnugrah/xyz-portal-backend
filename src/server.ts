@@ -21,7 +21,11 @@ const fastify = Fastify({ logger: true });
 
 //Configure CORS explicitly
 fastify.register(cors, {
-  origin: "*", // Allow all origins
+  origin: [
+    "https://xyzonemedia.com",
+    "https://cms.xyzone.media",
+    "http://localhost:4014", // for local dev
+  ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   preflightContinue: false, // Ensure Fastify responds to OPTIONS itself
