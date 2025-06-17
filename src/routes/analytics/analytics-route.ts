@@ -19,6 +19,43 @@ function getWeekNumber(d: Date): number {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
 }
 
+function fillMissingPeriods(result: Record<string, number>, dateFrom: string, dateTo: string, groupBy: 'day' | 'week' | 'month'): Record<string, number> {
+  const filledResult: Record<string, number> = { ...result }
+  const startDate = new Date(dateFrom)
+  const endDate = new Date(dateTo)
+  
+  if (groupBy === 'day') {
+    const currentDate = new Date(startDate)
+    while (currentDate <= endDate) {
+      const key = formatDate(currentDate)
+      if (!(key in filledResult)) {
+        filledResult[key] = 0
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+  } else if (groupBy === 'week') {
+    const currentDate = new Date(startDate)
+    while (currentDate <= endDate) {
+      const key = getWeekKey(currentDate)
+      if (!(key in filledResult)) {
+        filledResult[key] = 0
+      }
+      currentDate.setDate(currentDate.getDate() + 7)
+    }
+  } else if (groupBy === 'month') {
+    const currentDate = new Date(startDate)
+    while (currentDate <= endDate) {
+      const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+      if (!(key in filledResult)) {
+        filledResult[key] = 0
+      }
+      currentDate.setMonth(currentDate.getMonth() + 1)
+    }
+  }
+  
+  return filledResult
+}
+
 export default async function analyticsRoutes(server: FastifyInstance) {
   // POST: Simpan data
   server.post('/analytics', async (req, reply) => {
@@ -225,4 +262,209 @@ export default async function analyticsRoutes(server: FastifyInstance) {
     })
   })
 
+  // GET: Chart data based on date range
+  server.get('/analytics/chart/date-range', async (req, reply) => {
+    const query = req.query as {
+      date_from?: string
+      date_to?: string
+      group_by?: 'day' | 'week' | 'month'
+    }
+
+    // Default to last 30 days if no date range provided
+    const dateFrom = query.date_from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const dateTo = query.date_to || new Date().toISOString().split('T')[0]
+    const groupBy = query.group_by || 'day'
+
+    let db = supabase
+      .from('analytics_logs')
+      .select('created_at')
+      .gte('created_at', dateFrom)
+      .lte('created_at', dateTo + 'T23:59:59.999Z')
+      .order('created_at', { ascending: true })
+
+    const { data, error } = await db
+    if (error) return reply.status(500).send({ message: 'Gagal ambil data.', error })
+
+    const result: Record<string, number> = {}
+    
+    for (const item of data ?? []) {
+      const d = new Date(item.created_at)
+      let key: string
+      
+      switch (groupBy) {
+        case 'week':
+          key = getWeekKey(d)
+          break
+        case 'month':
+          key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+          break
+        case 'day':
+        default:
+          key = formatDate(d)
+          break
+      }
+      
+      result[key] = (result[key] || 0) + 1
+    }
+
+    // Fill in missing dates/periods with 0 counts
+    const filledResult = fillMissingPeriods(result, dateFrom, dateTo, groupBy)
+
+    return reply.send({
+      message: 'Chart data berhasil diambil.',
+      data: {
+        dateFrom,
+        dateTo,
+        groupBy,
+        chartData: Object.entries(filledResult).map(([period, count]) => ({
+          period,
+          count
+        }))
+      }
+    })
+  })
+
+  // GET: User article creation statistics
+  server.get('/analytics/users/article-count', async (req, reply) => {
+    const query = req.query as {
+      limit?: string
+      order_by?: 'article_count' | 'user_name' | 'created_at'
+      order_direction?: 'asc' | 'desc'
+      date_from?: string
+      date_to?: string
+    }
+
+    const limit = query.limit ? parseInt(query.limit) : 50
+    const orderBy = query.order_by || 'article_count'
+    const orderDirection = query.order_direction || 'desc'
+
+    try {
+      // Base query to get users and their article counts
+      let articlesQuery = supabase
+        .from('articles')
+        .select(`
+          author_id,
+          created_at,
+          author:author_id (
+            user_id,
+            username,
+            email,
+            fullname,
+            first_name,
+            last_name,
+            role
+          )
+        `)
+
+      // Apply date filters if provided
+      if (query.date_from) {
+        articlesQuery = articlesQuery.gte('created_at', query.date_from)
+      }
+      if (query.date_to) {
+        articlesQuery = articlesQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
+      }
+
+      const { data: articlesData, error: articlesError } = await articlesQuery
+
+      if (articlesError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data artikel.', 
+          error: articlesError 
+        })
+      }
+
+      // Group articles by user and count them
+      const userArticleMap = new Map<string, {
+        userId: string
+        userName: string
+        userEmail: string
+        userCreatedAt: string
+        articleCount: number
+        latestArticleDate?: string
+      }>()
+
+      for (const article of articlesData || []) {
+        const authorId = article.author_id
+        const author = article.author as any
+
+        if (!authorId || !author) continue
+
+        if (!userArticleMap.has(authorId)) {
+          userArticleMap.set(authorId, {
+            userId: author.user_id || authorId,
+            userName: author.fullname || author.username || `${author.first_name || ''} ${author.last_name || ''}`.trim() || 'Unknown',
+            userEmail: author.email || 'Unknown',
+            userCreatedAt: article.created_at, // Using article creation date as fallback
+            articleCount: 0,
+            latestArticleDate: article.created_at
+          })
+        }
+
+        const userStats = userArticleMap.get(authorId)!
+        userStats.articleCount += 1
+        
+        // Update latest article date
+        if (!userStats.latestArticleDate || article.created_at > userStats.latestArticleDate) {
+          userStats.latestArticleDate = article.created_at
+        }
+      }
+
+      // Convert to array and sort
+      let result = Array.from(userArticleMap.values())
+
+      // Sort based on query parameters
+      result.sort((a, b) => {
+        let comparison = 0
+        
+        switch (orderBy) {
+          case 'article_count':
+            comparison = a.articleCount - b.articleCount
+            break
+          case 'user_name':
+            comparison = a.userName.localeCompare(b.userName)
+            break
+          case 'created_at':
+            comparison = new Date(a.userCreatedAt).getTime() - new Date(b.userCreatedAt).getTime()
+            break
+          default:
+            comparison = a.articleCount - b.articleCount
+        }
+
+        return orderDirection === 'desc' ? -comparison : comparison
+      })
+
+      // Apply limit
+      result = result.slice(0, limit)
+
+      // Calculate summary statistics
+      const totalUsers = result.length
+      const totalArticles = result.reduce((sum, user) => sum + user.articleCount, 0)
+      const avgArticlesPerUser = totalUsers > 0 ? totalArticles / totalUsers : 0
+
+      return reply.send({
+        message: 'Data statistik artikel per user berhasil diambil.',
+        data: {
+          summary: {
+            totalUsers,
+            totalArticles,
+            avgArticlesPerUser: Number(avgArticlesPerUser.toFixed(2))
+          },
+          users: result.map(user => ({
+            userId: user.userId,
+            userName: user.userName,
+            userEmail: user.userEmail,
+            userCreatedAt: user.userCreatedAt,
+            articleCount: user.articleCount,
+            latestArticleDate: user.latestArticleDate
+          }))
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Terjadi kesalahan saat mengambil data.', 
+        error 
+      })
+    }
+  })
 }
