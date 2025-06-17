@@ -165,7 +165,7 @@ export default async function analyticsRoutes(server: FastifyInstance) {
     if (error) return reply.status(500).send({ message: 'Gagal ambil data.', error })
 
     const result: Record<string, {
-      count: number
+      totalVisitors: number
       uniqueVisitors: Set<string>
       totalDuration: number
       validDurationCount: number
@@ -177,19 +177,22 @@ export default async function analyticsRoutes(server: FastifyInstance) {
       
       if (!result[key]) {
         result[key] = {
-          count: 0,
+          totalVisitors: 0,
           uniqueVisitors: new Set(),
           totalDuration: 0,
           validDurationCount: 0
         }
       }
       
-      result[key].count += 1
+      // Hitung total visitors (semua entries)
+      result[key].totalVisitors += 1
       
+      // Hitung unique visitors (visitor_id unik per hari)
       if (item.visitor_id) {
         result[key].uniqueVisitors.add(item.visitor_id)
       }
       
+      // Hitung durasi rata-rata
       if (item.duration && item.duration > 0) {
         result[key].totalDuration += item.duration
         result[key].validDurationCount += 1
@@ -200,8 +203,8 @@ export default async function analyticsRoutes(server: FastifyInstance) {
       message: 'Daily chart generated.',
       data: Object.entries(result).map(([date, stats]) => ({
         date,
-        count: stats.count,
-        unique: stats.uniqueVisitors.size,
+        totalVisitors: stats.totalVisitors,
+        uniqueVisitors: stats.uniqueVisitors.size,
         duration: stats.validDurationCount > 0 
           ? Number((stats.totalDuration / stats.validDurationCount).toFixed(2))
           : 0
