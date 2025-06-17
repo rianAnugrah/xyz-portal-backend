@@ -157,19 +157,55 @@ export default async function analyticsRoutes(server: FastifyInstance) {
 
   // GET: Chart daily
   server.get('/analytics/chart/daily', async (req, reply) => {
-    const { data, error } = await supabase.from('analytics_logs').select('created_at').order('created_at', { ascending: true })
+    const { data, error } = await supabase
+      .from('analytics_logs')
+      .select('created_at, visitor_id, duration')
+      .order('created_at', { ascending: true })
+    
     if (error) return reply.status(500).send({ message: 'Gagal ambil data.', error })
 
-    const result: Record<string, number> = {}
+    const result: Record<string, {
+      count: number
+      uniqueVisitors: Set<string>
+      totalDuration: number
+      validDurationCount: number
+    }> = {}
+
     for (const item of data ?? []) {
       const d = new Date(item.created_at)
       const key = formatDate(d)
-      result[key] = (result[key] || 0) + 1
+      
+      if (!result[key]) {
+        result[key] = {
+          count: 0,
+          uniqueVisitors: new Set(),
+          totalDuration: 0,
+          validDurationCount: 0
+        }
+      }
+      
+      result[key].count += 1
+      
+      if (item.visitor_id) {
+        result[key].uniqueVisitors.add(item.visitor_id)
+      }
+      
+      if (item.duration && item.duration > 0) {
+        result[key].totalDuration += item.duration
+        result[key].validDurationCount += 1
+      }
     }
 
     return reply.send({
       message: 'Daily chart generated.',
-      data: Object.entries(result).map(([date, count]) => ({ date, count }))
+      data: Object.entries(result).map(([date, stats]) => ({
+        date,
+        count: stats.count,
+        unique: stats.uniqueVisitors.size,
+        duration: stats.validDurationCount > 0 
+          ? Number((stats.totalDuration / stats.validDurationCount).toFixed(2))
+          : 0
+      }))
     })
   })
 
