@@ -582,4 +582,433 @@ export default async function analyticsRoutes(server: FastifyInstance) {
       })
     }
   })
+
+  // GET: Article view statistics
+  server.get('/analytics/articles/views', async (req, reply) => {
+    const query = req.query as {
+      limit?: string
+      order_by?: 'view_count' | 'article_title' | 'created_at'
+      order_direction?: 'asc' | 'desc'
+      date_from?: string
+      date_to?: string
+    }
+
+    const limit = query.limit ? parseInt(query.limit) : 50
+    const orderBy = query.order_by || 'view_count'
+    const orderDirection = query.order_direction || 'desc'
+
+    try {
+      // Base query to get analytics data for articles
+      // Exclude null and empty article_id values
+      let analyticsQuery = supabase
+        .from('analytics_logs')
+        .select('article_id, article_slug, created_at')
+        .not('article_id', 'is', null)
+        .not('article_id', 'eq', '')
+
+      // Apply date filters if provided
+      if (query.date_from) {
+        analyticsQuery = analyticsQuery.gte('created_at', query.date_from)
+      }
+      if (query.date_to) {
+        analyticsQuery = analyticsQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
+      }
+
+      const { data: analyticsData, error: analyticsError } = await analyticsQuery
+
+      if (analyticsError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data analytics.', 
+          error: analyticsError 
+        })
+      }
+
+      // Group analytics by article and count views
+      const articleViewMap = new Map<string, {
+        articleId: string
+        articleSlug: string
+        viewCount: number
+        latestViewDate?: string
+      }>()
+
+      for (const log of analyticsData || []) {
+        const articleId = log.article_id
+
+        if (!articleViewMap.has(articleId)) {
+          articleViewMap.set(articleId, {
+            articleId,
+            articleSlug: log.article_slug || 'unknown',
+            viewCount: 0,
+            latestViewDate: log.created_at
+          })
+        }
+
+        const articleStats = articleViewMap.get(articleId)!
+        articleStats.viewCount += 1
+        
+        // Update latest view date
+        if (!articleStats.latestViewDate || log.created_at > articleStats.latestViewDate) {
+          articleStats.latestViewDate = log.created_at
+        }
+      }
+
+      // Get article details for the articles that have views (batch processing to avoid URI too long)
+      const articleIds = Array.from(articleViewMap.keys())
+      const batchSize = 100 // Process in batches to avoid URI too long error
+      let articlesData: any[] = []
+
+      // Process article IDs in batches
+      for (let i = 0; i < articleIds.length; i += batchSize) {
+        const batch = articleIds.slice(i, i + batchSize)
+        const { data: batchData, error: batchError } = await supabase
+          .from('articles')
+          .select(`
+            _id,
+            article_id,
+            title,
+            slug,
+            created_at,
+            author_id,
+            category,
+            views
+          `)
+          .in('article_id', batch)
+
+        if (batchError) {
+          return reply.status(500).send({ 
+            message: 'Gagal mengambil data artikel.', 
+            error: batchError 
+          })
+        }
+
+        if (batchData) {
+          articlesData = [...articlesData, ...batchData]
+        }
+      }
+
+      // Get author details (also batch this to be safe)
+      const authorIds = [...new Set(articlesData?.map(article => article.author_id).filter(Boolean))]
+      let authorsData: any[] = []
+
+      // Process author IDs in batches
+      for (let i = 0; i < authorIds.length; i += batchSize) {
+        const batch = authorIds.slice(i, i + batchSize)
+        const { data: batchData } = await supabase
+          .from('users')
+          .select('user_id, username, fullname, first_name, last_name')
+          .in('user_id', batch)
+
+        if (batchData) {
+          authorsData = [...authorsData, ...batchData]
+        }
+      }
+
+      const authorsMap = new Map(authorsData?.map(author => [author.user_id, author]) || [])
+
+      // Merge article details with view statistics
+      let result = articlesData?.map(article => {
+        const viewStats = articleViewMap.get(article.article_id?.toString())
+        const author = authorsMap.get(article.author_id)
+        
+        return {
+          articleId: article.article_id,
+          title: article.title,
+          slug: article.slug,
+          category: article.category,
+          authorName: author?.fullname || author?.username || `${author?.first_name || ''} ${author?.last_name || ''}`.trim() || 'Unknown',
+          createdAt: article.created_at,
+          viewCount: viewStats?.viewCount || 0,
+          totalViews: article.views || 0, // Database stored views
+          latestViewDate: viewStats?.latestViewDate
+        }
+      }) || []
+
+      // Sort based on query parameters
+      result.sort((a, b) => {
+        let comparison = 0
+        
+        switch (orderBy) {
+          case 'view_count':
+            comparison = a.viewCount - b.viewCount
+            break
+          case 'article_title':
+            comparison = a.title.localeCompare(b.title)
+            break
+          case 'created_at':
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            break
+          default:
+            comparison = a.viewCount - b.viewCount
+        }
+
+        return orderDirection === 'desc' ? -comparison : comparison
+      })
+
+      // Apply limit
+      result = result.slice(0, limit)
+
+      // Calculate summary statistics
+      const totalArticles = result.length
+      const totalViews = result.reduce((sum, article) => sum + article.viewCount, 0)
+      const avgViewsPerArticle = totalArticles > 0 ? totalViews / totalArticles : 0
+
+      return reply.send({
+        message: 'Data statistik views per artikel berhasil diambil.',
+        data: {
+          summary: {
+            totalArticles,
+            totalViews,
+            avgViewsPerArticle: Number(avgViewsPerArticle.toFixed(2))
+          },
+          articles: result
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Terjadi kesalahan saat mengambil data artikel.', 
+        error 
+      })
+    }
+  })
+
+  // GET: Category view statistics
+  server.get('/analytics/categories/views', async (req, reply) => {
+    const query = req.query as {
+      limit?: string
+      order_by?: 'view_count' | 'category_name' | 'created_at'
+      order_direction?: 'asc' | 'desc'
+      date_from?: string
+      date_to?: string
+    }
+
+    const limit = query.limit ? parseInt(query.limit) : 50
+    const orderBy = query.order_by || 'view_count'
+    const orderDirection = query.order_direction || 'desc'
+
+    try {
+      // Base query to get analytics data for categories
+      // Exclude null and empty category_slug values
+      let analyticsQuery = supabase
+        .from('analytics_logs')
+        .select('category_slug, created_at')
+        .not('category_slug', 'is', null)
+        .not('category_slug', 'eq', '')
+
+      // Apply date filters if provided
+      if (query.date_from) {
+        analyticsQuery = analyticsQuery.gte('created_at', query.date_from)
+      }
+      if (query.date_to) {
+        analyticsQuery = analyticsQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
+      }
+
+      const { data: analyticsData, error: analyticsError } = await analyticsQuery
+
+      if (analyticsError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data analytics.', 
+          error: analyticsError 
+        })
+      }
+
+      // Group analytics by category and count views
+      const categoryViewMap = new Map<string, {
+        categorySlug: string
+        viewCount: number
+        latestViewDate?: string
+      }>()
+
+      for (const log of analyticsData || []) {
+        const categorySlug = log.category_slug
+
+        if (!categoryViewMap.has(categorySlug)) {
+          categoryViewMap.set(categorySlug, {
+            categorySlug,
+            viewCount: 0,
+            latestViewDate: log.created_at
+          })
+        }
+
+        const categoryStats = categoryViewMap.get(categorySlug)!
+        categoryStats.viewCount += 1
+        
+        // Update latest view date
+        if (!categoryStats.latestViewDate || log.created_at > categoryStats.latestViewDate) {
+          categoryStats.latestViewDate = log.created_at
+        }
+      }
+
+      // Get category details for the categories that have views (batch processing to avoid URI too long)
+      // Note: analytics_logs.category_slug actually contains category names, not slugs
+      const categoryNames = Array.from(categoryViewMap.keys())
+      const batchSize = 100 // Process in batches to avoid URI too long error
+      let categoriesData: any[] = []
+
+      // Process category names in batches (matching by category_name instead of category_slug)
+      for (let i = 0; i < categoryNames.length; i += batchSize) {
+        const batch = categoryNames.slice(i, i + batchSize)
+        const { data: batchData, error: batchError } = await supabase
+          .from('categories')
+          .select('id, category_name, category_slug, created_at, category_desc, category_count')
+          .in('category_name', batch)
+
+        if (batchError) {
+          return reply.status(500).send({ 
+            message: 'Gagal mengambil data kategori.', 
+            error: batchError 
+          })
+        }
+
+        if (batchData) {
+          categoriesData = [...categoriesData, ...batchData]
+        }
+      }
+
+      // Merge category details with view statistics and group by category name
+      // Note: Match by category_name since analytics_logs.category_slug contains category names
+      const categoryMap = new Map<string, any>()
+      
+      // Group categories by name, taking the first occurrence of each name
+      for (const category of categoriesData || []) {
+        const categoryName = category.category_name
+        
+        if (!categoryMap.has(categoryName)) {
+          const viewStats = categoryViewMap.get(categoryName)
+          categoryMap.set(categoryName, {
+            categoryId: category.id,
+            categoryName: category.category_name,
+            categorySlug: category.category_slug,
+            viewCount: viewStats?.viewCount || 0
+          })
+        }
+      }
+      
+      let result = Array.from(categoryMap.values())
+
+      // Sort based on query parameters
+      result.sort((a, b) => {
+        let comparison = 0
+        
+        switch (orderBy) {
+          case 'view_count':
+            comparison = a.viewCount - b.viewCount
+            break
+          case 'category_name':
+            comparison = a.categoryName.localeCompare(b.categoryName)
+            break
+          case 'created_at':
+            // Fallback to view_count sorting since we don't have createdAt in response
+            comparison = a.viewCount - b.viewCount
+            break
+          default:
+            comparison = a.viewCount - b.viewCount
+        }
+
+        return orderDirection === 'desc' ? -comparison : comparison
+      })
+
+      // Apply limit
+      result = result.slice(0, limit)
+
+      // Calculate summary statistics
+      const totalCategories = result.length
+      const totalViews = result.reduce((sum, category) => sum + category.viewCount, 0)
+      const avgViewsPerCategory = totalCategories > 0 ? totalViews / totalCategories : 0
+
+      return reply.send({
+        message: 'Data statistik views per kategori berhasil diambil.',
+        data: {
+          summary: {
+            totalCategories,
+            totalViews,
+            avgViewsPerCategory: Number(avgViewsPerCategory.toFixed(2))
+          },
+          categories: result
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Terjadi kesalahan saat mengambil data kategori.', 
+        error 
+      })
+    }
+  })
+
+  // GET: Debug endpoint for category analytics
+  server.get('/analytics/categories/debug', async (req, reply) => {
+    try {
+      // Get analytics logs WITH category_slug (including nulls and empty strings)
+      const { data: allAnalyticsData, error: allAnalyticsError } = await supabase
+        .from('analytics_logs')
+        .select('category_slug, created_at, article_id, article_slug')
+        .limit(200)
+
+      // Get analytics logs WITHOUT null category_slug
+      const { data: nonNullAnalyticsData, error: nonNullAnalyticsError } = await supabase
+        .from('analytics_logs')
+        .select('category_slug, created_at')
+        .not('category_slug', 'is', null)
+        .limit(100)
+
+      // Get analytics logs with empty string category_slug
+      const { data: emptyStringData, error: emptyStringError } = await supabase
+        .from('analytics_logs')
+        .select('category_slug, created_at')
+        .eq('category_slug', '')
+        .limit(20)
+
+      // Get all categories from categories table
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id, category_name, category_slug')
+        .limit(50)
+
+      // Count all category slugs (including nulls and empty)
+      const allCategorySlugCounts = new Map<string, number>()
+      for (const log of allAnalyticsData || []) {
+        const slug = log.category_slug || 'NULL_OR_EMPTY'
+        allCategorySlugCounts.set(slug, (allCategorySlugCounts.get(slug) || 0) + 1)
+      }
+
+      // Count non-null category slugs
+      const nonNullCategorySlugCounts = new Map<string, number>()
+      for (const log of nonNullAnalyticsData || []) {
+        const slug = log.category_slug
+        nonNullCategorySlugCounts.set(slug, (nonNullCategorySlugCounts.get(slug) || 0) + 1)
+      }
+
+      return reply.send({
+        message: 'Debug data untuk category analytics',
+        data: {
+          analytics: {
+            totalLogsAll: allAnalyticsData?.length || 0,
+            totalLogsNonNull: nonNullAnalyticsData?.length || 0,
+            totalLogsEmptyString: emptyStringData?.length || 0,
+            sampleAllLogs: allAnalyticsData?.slice(0, 10) || [],
+            sampleNonNullLogs: nonNullAnalyticsData?.slice(0, 5) || [],
+            allCategorySlugCounts: Object.fromEntries(allCategorySlugCounts),
+            nonNullCategorySlugCounts: Object.fromEntries(nonNullCategorySlugCounts)
+          },
+          categories: {
+            totalCategories: categoriesData?.length || 0,
+            sampleCategories: categoriesData?.slice(0, 10) || []
+          },
+          errors: {
+            allAnalyticsError,
+            nonNullAnalyticsError,
+            emptyStringError,
+            categoriesError
+          }
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Debug error', 
+        error 
+      })
+    }
+  })
 }
