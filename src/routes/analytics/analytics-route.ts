@@ -316,7 +316,7 @@ export default async function analyticsRoutes(server: FastifyInstance) {
 
     let db = supabase
       .from('analytics_logs')
-      .select('created_at')
+      .select('created_at, visitor_id, duration')
       .gte('created_at', dateFrom)
       .lte('created_at', dateTo + 'T23:59:59.999Z')
       .order('created_at', { ascending: true })
@@ -324,7 +324,12 @@ export default async function analyticsRoutes(server: FastifyInstance) {
     const { data, error } = await db
     if (error) return reply.status(500).send({ message: 'Gagal ambil data.', error })
 
-    const result: Record<string, number> = {}
+    const result: Record<string, {
+      totalVisitors: number
+      uniqueVisitors: Set<string>
+      totalDuration: number
+      validDurationCount: number
+    }> = {}
     
     for (const item of data ?? []) {
       const d = new Date(item.created_at)
@@ -343,11 +348,78 @@ export default async function analyticsRoutes(server: FastifyInstance) {
           break
       }
       
-      result[key] = (result[key] || 0) + 1
+      if (!result[key]) {
+        result[key] = {
+          totalVisitors: 0,
+          uniqueVisitors: new Set(),
+          totalDuration: 0,
+          validDurationCount: 0
+        }
+      }
+      
+      // Hitung total visitors (semua entries)
+      result[key].totalVisitors += 1
+      
+      // Hitung unique visitors (visitor_id unik per periode)
+      if (item.visitor_id) {
+        result[key].uniqueVisitors.add(item.visitor_id)
+      }
+      
+      // Hitung durasi rata-rata
+      if (item.duration && item.duration > 0) {
+        result[key].totalDuration += item.duration
+        result[key].validDurationCount += 1
+      }
     }
 
-    // Fill in missing dates/periods with 0 counts
-    const filledResult = fillMissingPeriods(result, dateFrom, dateTo, groupBy)
+    // Fill in missing dates/periods with empty stats
+    const filledResult: Record<string, {
+      totalVisitors: number
+      uniqueVisitors: Set<string>
+      totalDuration: number
+      validDurationCount: number
+    }> = {}
+    
+    const startDate = new Date(dateFrom)
+    const endDate = new Date(dateTo)
+    
+    if (groupBy === 'day') {
+      const currentDate = new Date(startDate)
+      while (currentDate <= endDate) {
+        const key = formatDate(currentDate)
+        filledResult[key] = result[key] || {
+          totalVisitors: 0,
+          uniqueVisitors: new Set(),
+          totalDuration: 0,
+          validDurationCount: 0
+        }
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+    } else if (groupBy === 'week') {
+      const currentDate = new Date(startDate)
+      while (currentDate <= endDate) {
+        const key = getWeekKey(currentDate)
+        filledResult[key] = result[key] || {
+          totalVisitors: 0,
+          uniqueVisitors: new Set(),
+          totalDuration: 0,
+          validDurationCount: 0
+        }
+        currentDate.setDate(currentDate.getDate() + 7)
+      }
+    } else if (groupBy === 'month') {
+      const currentDate = new Date(startDate)
+      while (currentDate <= endDate) {
+        const key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+        filledResult[key] = result[key] || {
+          totalVisitors: 0,
+          uniqueVisitors: new Set(),
+          totalDuration: 0,
+          validDurationCount: 0
+        }
+        currentDate.setMonth(currentDate.getMonth() + 1)
+      }
+    }
 
     return reply.send({
       message: 'Chart data berhasil diambil.',
@@ -355,9 +427,13 @@ export default async function analyticsRoutes(server: FastifyInstance) {
         dateFrom,
         dateTo,
         groupBy,
-        chartData: Object.entries(filledResult).map(([period, count]) => ({
-          period,
-          count
+        chartData: Object.entries(filledResult).map(([period, stats]) => ({
+          date: period,
+          totalVisitors: stats.totalVisitors,
+          uniqueVisitors: stats.uniqueVisitors.size,
+          duration: stats.validDurationCount > 0 
+            ? Number((stats.totalDuration / stats.validDurationCount).toFixed(2))
+            : 0
         }))
       }
     })
