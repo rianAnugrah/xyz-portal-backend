@@ -120,7 +120,24 @@ export default async function analyticsRoutes(server: FastifyInstance) {
     }
     
     if (body.article_id) {
-      await supabase.rpc('increment_article_view', { aid: body.article_id })
+      // Alternative: SELECT current views, then UPDATE with incremented value
+      try {
+        const { data: articleData, error: selectError } = await supabase
+          .from('articles')
+          .select('views')
+          .eq('article_id', body.article_id)
+          .single()
+        
+        if (!selectError && articleData) {
+          const currentViews = articleData.views || 0
+          await supabase
+            .from('articles')
+            .update({ views: currentViews + 1 })
+            .eq('article_id', body.article_id)
+        }
+      } catch (error) {
+        console.error('Failed to increment article views:', error)
+      }
     }
     
     
@@ -1000,6 +1017,131 @@ export default async function analyticsRoutes(server: FastifyInstance) {
             nonNullAnalyticsError,
             emptyStringError,
             categoriesError
+          }
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Debug error', 
+        error 
+      })
+    }
+  })
+
+  // GET: Debug endpoint for article views
+  server.get('/analytics/articles/debug', async (req, reply) => {
+    try {
+      // Get some analytics data
+      const { data: analyticsData } = await supabase
+        .from('analytics_logs')
+        .select('article_id, article_slug, created_at')
+        .not('article_id', 'is', null)
+        .not('article_id', 'eq', '')
+        .limit(20)
+
+      // Group analytics by article and count views (same logic as main endpoint)
+      const articleViewMap = new Map<string, {
+        articleId: string
+        articleSlug: string
+        viewCount: number
+        latestViewDate?: string
+      }>()
+
+      for (const log of analyticsData || []) {
+        const articleId = log.article_id
+
+        if (!articleViewMap.has(articleId)) {
+          articleViewMap.set(articleId, {
+            articleId,
+            articleSlug: log.article_slug || 'unknown',
+            viewCount: 0,
+            latestViewDate: log.created_at
+          })
+        }
+
+        const articleStats = articleViewMap.get(articleId)!
+        articleStats.viewCount += 1
+      }
+
+      // Get some article details
+      const articleIds = Array.from(articleViewMap.keys()).slice(0, 10)
+      const { data: articlesData } = await supabase
+        .from('articles')
+        .select('_id, article_id, title, slug, created_at')
+        .in('article_id', articleIds)
+
+      // Test the same logic as the main endpoint for merging data
+      let testResult = articlesData?.map(article => {
+        const viewStats = articleViewMap.get(article.article_id?.toString())
+        
+        return {
+          articleId: article.article_id,
+          title: article.title,
+          slug: article.slug,
+          viewCount: viewStats?.viewCount || 0,
+          lookupKey: article.article_id?.toString(),
+          hasViewStats: !!viewStats,
+          mapKeys: Array.from(articleViewMap.keys())
+        }
+      }) || []
+
+      // Check for missing articles (IDs in analytics but not in articles table)
+      const foundArticleIds = new Set(articlesData?.map(a => String(a.article_id)) || [])
+      const missingArticles = articleIds.filter(id => !foundArticleIds.has(String(id)))
+
+      // Check for ID matching issues
+      const idMatching = articleIds.map(analyticsId => {
+        const foundInArticles = articlesData?.find(article => 
+          String(article.article_id) === String(analyticsId)
+        )
+        return {
+          analyticsId,
+          analyticsIdType: typeof analyticsId,
+          foundInArticles: !!foundInArticles,
+          articleId: foundInArticles?.article_id,
+          articleIdType: typeof foundInArticles?.article_id,
+          stringMatch: String(analyticsId) === String(foundInArticles?.article_id)
+        }
+      })
+
+      return reply.send({
+        message: 'Debug data untuk article views',
+        data: {
+          analytics: {
+            totalLogs: analyticsData?.length || 0,
+            sampleLogs: analyticsData?.slice(0, 5) || [],
+            uniqueArticleIds: articleViewMap.size,
+            viewCounts: Object.fromEntries(Array.from(articleViewMap.entries()).slice(0, 5))
+          },
+          articles: {
+            totalArticles: articlesData?.length || 0,
+            sampleArticles: articlesData?.slice(0, 5) || [],
+            missingArticles,
+            missingCount: missingArticles.length
+          },
+          mergeTest: {
+            testResults: testResult.slice(0, 5),
+            totalProcessed: testResult.length,
+            withViewCounts: testResult.filter(r => r.viewCount > 0).length,
+            withoutViewCounts: testResult.filter(r => r.viewCount === 0).length
+          },
+          idMatching,
+          typeCheck: {
+            analyticsIdTypes: analyticsData?.slice(0, 3).map(log => ({
+              id: log.article_id,
+              type: typeof log.article_id,
+              isNull: log.article_id === null,
+              isEmpty: log.article_id === '',
+              stringValue: String(log.article_id)
+            })) || [],
+            articleIdTypes: articlesData?.slice(0, 3).map(article => ({
+              id: article.article_id,
+              type: typeof article.article_id,
+              isNull: article.article_id === null,
+              toString: article.article_id?.toString(),
+              stringValue: String(article.article_id)
+            })) || []
           }
         }
       })
