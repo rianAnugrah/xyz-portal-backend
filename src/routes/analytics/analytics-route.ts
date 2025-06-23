@@ -456,35 +456,41 @@ export default async function analyticsRoutes(server: FastifyInstance) {
     })
   })
 
-  // GET: User article creation statistics
+  // GET: Articles with most views
   server.get('/analytics/users/article-count', async (req, reply) => {
     const query = req.query as {
       limit?: string
-      order_by?: 'article_count' | 'user_name' | 'created_at'
+      order_by?: 'views' | 'title' | 'created_at'
       order_direction?: 'asc' | 'desc'
       date_from?: string
       date_to?: string
     }
 
     const limit = query.limit ? parseInt(query.limit) : 50
-    const orderBy = query.order_by || 'article_count'
+    const orderBy = query.order_by || 'views'
     const orderDirection = query.order_direction || 'desc'
 
     try {
-      // Base query to get users and their article counts
+      // Base query to get articles with their views
       let articlesQuery = supabase
         .from('articles')
         .select(`
-          author_id,
+          _id,
+          article_id,
+          title,
+          slug,
+          views,
           created_at,
+          updated_at,
+          category,
+          author_id,
           author:author_id (
             user_id,
             username,
             email,
             fullname,
             first_name,
-            last_name,
-            role
+            last_name
           )
         `)
 
@@ -496,6 +502,26 @@ export default async function analyticsRoutes(server: FastifyInstance) {
         articlesQuery = articlesQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
       }
 
+      // Apply sorting
+      let orderColumn = 'views'
+      switch (orderBy) {
+        case 'title':
+          orderColumn = 'title'
+          break
+        case 'created_at':
+          orderColumn = 'created_at'
+          break
+        case 'views':
+        default:
+          orderColumn = 'views'
+          break
+      }
+
+      articlesQuery = articlesQuery.order(orderColumn, { ascending: orderDirection === 'asc' })
+
+      // Apply limit
+      articlesQuery = articlesQuery.limit(limit)
+
       const { data: articlesData, error: articlesError } = await articlesQuery
 
       if (articlesError) {
@@ -505,96 +531,56 @@ export default async function analyticsRoutes(server: FastifyInstance) {
         })
       }
 
-      // Group articles by user and count them
-      const userArticleMap = new Map<string, {
-        userId: string
-        userName: string
-        userEmail: string
-        userCreatedAt: string
-        articleCount: number
-        latestArticleDate?: string
-      }>()
-
-      for (const article of articlesData || []) {
-        const authorId = article.author_id
+      // Format the response data
+      const articles = articlesData?.map(article => {
         const author = article.author as any
-
-        if (!authorId || !author) continue
-
-        if (!userArticleMap.has(authorId)) {
-          userArticleMap.set(authorId, {
-            userId: author.user_id || authorId,
-            userName: author.fullname || author.username || `${author.first_name || ''} ${author.last_name || ''}`.trim() || 'Unknown',
-            userEmail: author.email || 'Unknown',
-            userCreatedAt: article.created_at, // Using article creation date as fallback
-            articleCount: 0,
-            latestArticleDate: article.created_at
-          })
+        return {
+          articleId: article.article_id,
+          title: article.title,
+          slug: article.slug,
+          views: article.views || 0,
+          category: article.category,
+          createdAt: article.created_at,
+          updatedAt: article.updated_at,
+          author: {
+            userId: author?.user_id || article.author_id,
+            name: author?.fullname || author?.username || `${author?.first_name || ''} ${author?.last_name || ''}`.trim() || 'Unknown',
+            email: author?.email || 'Unknown'
+          }
         }
-
-        const userStats = userArticleMap.get(authorId)!
-        userStats.articleCount += 1
-        
-        // Update latest article date
-        if (!userStats.latestArticleDate || article.created_at > userStats.latestArticleDate) {
-          userStats.latestArticleDate = article.created_at
-        }
-      }
-
-      // Convert to array and sort
-      let result = Array.from(userArticleMap.values())
-
-      // Sort based on query parameters
-      result.sort((a, b) => {
-        let comparison = 0
-        
-        switch (orderBy) {
-          case 'article_count':
-            comparison = a.articleCount - b.articleCount
-            break
-          case 'user_name':
-            comparison = a.userName.localeCompare(b.userName)
-            break
-          case 'created_at':
-            comparison = new Date(a.userCreatedAt).getTime() - new Date(b.userCreatedAt).getTime()
-            break
-          default:
-            comparison = a.articleCount - b.articleCount
-        }
-
-        return orderDirection === 'desc' ? -comparison : comparison
-      })
-
-      // Apply limit
-      result = result.slice(0, limit)
+      }) || []
 
       // Calculate summary statistics
-      const totalUsers = result.length
-      const totalArticles = result.reduce((sum, user) => sum + user.articleCount, 0)
-      const avgArticlesPerUser = totalUsers > 0 ? totalArticles / totalUsers : 0
+      const totalArticles = articles.length
+      const totalViews = articles.reduce((sum, article) => sum + article.views, 0)
+      const avgViewsPerArticle = totalArticles > 0 ? totalViews / totalArticles : 0
+      const maxViews = articles.length > 0 ? Math.max(...articles.map(a => a.views)) : 0
+      const minViews = articles.length > 0 ? Math.min(...articles.map(a => a.views)) : 0
 
       return reply.send({
-        message: 'Data statistik artikel per user berhasil diambil.',
+        message: 'Data artikel dengan views terbanyak berhasil diambil.',
         data: {
           summary: {
-            totalUsers,
             totalArticles,
-            avgArticlesPerUser: Number(avgArticlesPerUser.toFixed(2))
+            totalViews,
+            avgViewsPerArticle: Number(avgViewsPerArticle.toFixed(2)),
+            maxViews,
+            minViews
           },
-          users: result.map(user => ({
-            userId: user.userId,
-            userName: user.userName,
-            userEmail: user.userEmail,
-            userCreatedAt: user.userCreatedAt,
-            articleCount: user.articleCount,
-            latestArticleDate: user.latestArticleDate
-          }))
+          filters: {
+            dateFrom: query.date_from || null,
+            dateTo: query.date_to || null,
+            orderBy,
+            orderDirection,
+            limit
+          },
+          articles
         }
       })
 
     } catch (error) {
       return reply.status(500).send({ 
-        message: 'Terjadi kesalahan saat mengambil data.', 
+        message: 'Terjadi kesalahan saat mengambil data artikel.', 
         error 
       })
     }
