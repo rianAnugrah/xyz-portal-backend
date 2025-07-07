@@ -30,6 +30,8 @@ export default async function analyticsCoreRoutes(server: FastifyInstance) {
       duration?: number
       platform_id?: number
       country?: string
+      event_type?: string
+      ad_position?: string
     }
   
     const { error } = await supabase.from('analytics_logs').insert({
@@ -57,7 +59,9 @@ export default async function analyticsCoreRoutes(server: FastifyInstance) {
       exited_at: body.exitedAt || null,
       duration: body.duration || null,
       platform_id: body.platform_id || null,
-      country: body.country || null
+      country: body.country || null,
+      event_type: body.event_type || null,
+      ad_position: body.ad_position || null
     })
   
     if (error) {
