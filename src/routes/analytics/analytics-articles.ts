@@ -327,4 +327,177 @@ export default async function analyticsArticlesRoutes(server: FastifyInstance) {
       })
     }
   })
+
+  // GET: User article statistics
+  server.get('/analytics/users/article-statistics', async (req, reply) => {
+    const query = req.query as {
+      limit?: string
+      order_by?: 'total_views' | 'total_articles' | 'username' | 'created_at'
+      order_direction?: 'asc' | 'desc'
+      date_from?: string
+      date_to?: string
+      user_id?: string
+    }
+
+    const limit = query.limit ? parseInt(query.limit) : 50
+    const orderBy = query.order_by || 'total_views'
+    const orderDirection = query.order_direction || 'desc'
+
+    try {
+      // Base query to get users
+      let usersQuery = supabase
+        .from('users')
+        .select(`
+          user_id,
+          username,
+          email,
+          fullname,
+          status,
+          role,
+          avatar,
+          created_at
+        `)
+
+      // Filter by specific user if provided
+      if (query.user_id) {
+        usersQuery = usersQuery.eq('user_id', query.user_id)
+      }
+
+      const { data: usersData, error: usersError } = await usersQuery
+
+      if (usersError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data user.', 
+          error: usersError 
+        })
+      }
+
+      // Get articles data for all users
+      let articlesQuery = supabase
+        .from('articles')
+        .select(`
+          article_id,
+          author_id,
+          views,
+          status,
+          created_at
+        `)
+
+      // Apply date filters to articles if provided
+      if (query.date_from) {
+        articlesQuery = articlesQuery.gte('created_at', query.date_from)
+      }
+      if (query.date_to) {
+        articlesQuery = articlesQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
+      }
+
+      const { data: articlesData, error: articlesError } = await articlesQuery
+
+      if (articlesError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data artikel.', 
+          error: articlesError 
+        })
+      }
+
+      // Process user statistics
+      const userStats = usersData?.map(user => {
+        const userArticles = articlesData?.filter(article => article.author_id === user.user_id) || []
+        
+        // Count articles by status
+        const totalArticlePublish = userArticles.filter(article => 
+          article.status === 'published' || article.status === 'active' || !article.status
+        ).length
+        
+        const totalArticlePending = userArticles.filter(article => 
+          article.status === 'pending' || article.status === 'draft'
+        ).length
+        
+        const totalArticleRejected = userArticles.filter(article => 
+          article.status === 'rejected' || article.status === 'inactive'
+        ).length
+        
+        // Calculate total views
+        const totalViews = userArticles.reduce((sum, article) => sum + (article.views || 0), 0)
+        
+        return {
+          user_id: user.user_id,
+          email: user.email,
+          username: user.username,
+          fullname: user.fullname,
+          status: user.status,
+          role: user.role,
+          avatar: user.avatar,
+          total_article_publish: totalArticlePublish,
+          total_article_pending: totalArticlePending,
+          total_article_rejected: totalArticleRejected,
+          total_views: totalViews,
+          target: null, // This would need to be added from a targets table if exists
+          total_articles: userArticles.length,
+          created_at: user.created_at
+        }
+      }) || []
+
+      // Sort based on query parameters
+      userStats.sort((a, b) => {
+        let comparison = 0
+        
+        switch (orderBy) {
+          case 'total_views':
+            comparison = a.total_views - b.total_views
+            break
+          case 'total_articles':
+            comparison = a.total_articles - b.total_articles
+            break
+          case 'username':
+            comparison = (a.username || '').localeCompare(b.username || '')
+            break
+          case 'created_at':
+            comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            break
+          default:
+            comparison = a.total_views - b.total_views
+        }
+
+        return orderDirection === 'desc' ? -comparison : comparison
+      })
+
+      // Apply limit
+      const limitedUsers = userStats.slice(0, limit)
+
+      // Calculate summary statistics
+      const totalArticles = userStats.reduce((sum, user) => sum + user.total_articles, 0)
+      const totalViews = userStats.reduce((sum, user) => sum + user.total_views, 0)
+      const avgViewsPerArticle = totalArticles > 0 ? totalViews / totalArticles : 0
+      const maxViews = userStats.length > 0 ? Math.max(...userStats.map(u => u.total_views)) : 0
+      const minViews = userStats.length > 0 ? Math.min(...userStats.map(u => u.total_views)) : 0
+
+      return reply.send({
+        message: 'Data statistik artikel per user berhasil diambil.',
+        data: {
+          summary: {
+            totalArticles,
+            totalViews,
+            avgViewsPerArticle: Number(avgViewsPerArticle.toFixed(2)),
+            maxViews,
+            minViews
+          },
+          filters: {
+            dateFrom: query.date_from || null,
+            dateTo: query.date_to || null,
+            orderBy,
+            orderDirection,
+            limit
+          },
+          users: limitedUsers
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Terjadi kesalahan saat mengambil data statistik user.', 
+        error 
+      })
+    }
+  })
 } 
