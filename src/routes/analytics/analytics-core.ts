@@ -143,4 +143,98 @@ export default async function analyticsCoreRoutes(server: FastifyInstance) {
       }
     })
   })
+
+  // GET: Ads count by position
+  server.get('/analytics/ads/position-stats', async (req, reply) => {
+    const query = req.query as {
+      date_from?: string
+      date_to?: string
+    }
+
+    try {
+      // Base query to get ads analytics data
+      let adsQuery = supabase
+        .from('analytics_logs')
+        .select('ad_position, event_type, created_at')
+        .not('ad_position', 'is', null)
+        .not('ad_position', 'eq', '')
+
+      // Apply date filters if provided
+      if (query.date_from) {
+        adsQuery = adsQuery.gte('created_at', query.date_from)
+      }
+      if (query.date_to) {
+        adsQuery = adsQuery.lte('created_at', query.date_to + 'T23:59:59.999Z')
+      }
+
+      const { data: adsData, error: adsError } = await adsQuery
+
+      if (adsError) {
+        return reply.status(500).send({ 
+          message: 'Gagal mengambil data ads.', 
+          error: adsError 
+        })
+      }
+
+      // Group ads data by position and event type
+      const positionStats: Record<string, { click: number, touch: number, other: number }> = {}
+
+      for (const log of adsData || []) {
+        const position = log.ad_position
+        const eventType = log.event_type || 'other'
+
+        if (!positionStats[position]) {
+          positionStats[position] = {
+            click: 0,
+            touch: 0,
+            other: 0
+          }
+        }
+
+        // Count events by type
+        switch (eventType.toLowerCase()) {
+          case 'click':
+            positionStats[position].click += 1
+            break
+          case 'touch':
+            positionStats[position].touch += 1
+            break
+          default:
+            positionStats[position].other += 1
+            break
+        }
+      }
+
+      // Calculate totals
+      const totalStats = {
+        click: 0,
+        touch: 0,
+        other: 0
+      }
+
+      Object.values(positionStats).forEach(stats => {
+        totalStats.click += stats.click
+        totalStats.touch += stats.touch
+        totalStats.other += stats.other
+      })
+
+      return reply.send({
+        message: 'Data statistik ads per posisi berhasil diambil.',
+        data: {
+          ad_position: positionStats,
+          total: totalStats,
+          filters: {
+            dateFrom: query.date_from || null,
+            dateTo: query.date_to || null
+          }
+        }
+      })
+
+    } catch (error) {
+      return reply.status(500).send({ 
+        message: 'Terjadi kesalahan saat mengambil data ads.', 
+        error 
+      })
+    }
+  })
 } 
